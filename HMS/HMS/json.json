@@ -1,0 +1,14 @@
+{
+  "exclude": [
+    "**/bin",
+    "**/bower_components",
+    "**/jspm_packages",
+    "**/node_modules",
+    "**/obj",
+    "**/platforms"
+  ],
+
+  "ConnectionStrings": {
+    "MyDatabase": "Server=byctyusjlexeyjp3rjpx-mysql.services.clever-cloud.com;Port=3306;Database=byctyusjlexeyjp3rjpx;User Id=uem3gvx5y4wqi7ua;Password=b11xjAlHqwstVQ68bvZK;"
+  }
+}
