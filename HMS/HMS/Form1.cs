@@ -8,20 +8,24 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Data.SqlClient;
+
+using Newtonsoft.Json;
+using System.Net.Http;
 namespace HMS
 {
     public partial class Login_Page : Form
     {
+        List<User> users;
+        private const string BaseUrl = "http://localhost:3000"; // Replace with your actual backend URL
+
         public Login_Page()
         {
             InitializeComponent();
         }
-        SqlConnection con;
-        SqlCommand cmd;
 
         private void Login_Page_Load(object sender, EventArgs e)
         {
-
+            users =  getUsers();
         }
 
         private void label3_Click(object sender, EventArgs e)
@@ -30,81 +34,116 @@ namespace HMS
 
         private void lgn_Click(object sender, EventArgs e)
         {
-            con = Configuration.getInstance().getConnection();
-            // Create a SQL command
-            using (cmd = new SqlCommand("SELECT * FROM Users", con))
+            foreach(User u in users)
             {
-                // Execute the query and get the result
-                using (SqlDataReader reader = cmd.ExecuteReader())
+                if (u.Username == user.Text && u.Password == pwd.Text && u.Role ==GetUser())
                 {
-                    List<User> userList = new List<User>();
-
-                    // Read each row from the result set
-                    while (reader.Read())
-                    {
-                        User user = new User
-                        {
-                            Role = (int)reader["role"],
-                            Username = (string)reader["username"],
-                            Password = (string)reader["password"]
-                        };
-
-                        userList.Add(user);
-                    }
-
-                    // Close the reader
-                    reader.Close();
-
-                    foreach(User u in userList)
-                    {
-                        if(u.Username == user.Text && u.Password == pwd.Text && u.Role == GetUser())
-                        {
-                            Admin.Admin a = new Admin.Admin();
-                            Hide();
-                            a.Show();
-                            return;
-                        } 
-                    }
-                    MessageBox.Show("Invalid username or password, try registering");
-                }
-                
+                    openForm();
+                    return;
+                }    
             }
-
-           
+            MessageBox.Show("Invalid username or password");
         }
 
         private void reg_Click(object sender, EventArgs e)
         {
-            con = Configuration.getInstance().getConnection();
-            cmd = new SqlCommand(" Insert into Users values (@role,@username,@password)", con);
-            //cmd.Parameters.AddWithValue("@Id", int.Parse(Id_txt.Text));
+            // Replace "/user/add" with your actual API endpoint
+            string apiEndpoint = "/user/add";
 
-            if(Admin_op.Checked)
-                cmd.Parameters.AddWithValue("@role", 1);
+            int role = GetUser();
+            // Replace this with your actual user data
+            var userData = new
+            {
+                username = user.Text,
+                password = pwd.Text,
+                role = role
+                // Add other properties as needed
+            };
 
-            if (patientOp.Checked)
-                cmd.Parameters.AddWithValue("@role", 2);
+            string jsonUserData = JsonConvert.SerializeObject(userData);
+            HttpContent content = new StringContent(jsonUserData, Encoding.UTF8, "application/json");
 
-            if (doctorOp.Checked)
-                cmd.Parameters.AddWithValue("@role", 3);
+            try
+            {
+                AddUserAsync(apiEndpoint, content);
+                MessageBox.Show("User added successfully.");
+                openForm();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error adding user: {ex.Message}");
+            }
+        }
 
-            if (staffOp.Checked)
-                cmd.Parameters.AddWithValue("@role", 4);
+        private List<User> getUsers()
+        {
+            // Replace "/user/getAll" with your actual API endpoint for getting all users
+            string getAllUsersEndpoint = "/user/users";
 
-            cmd.Parameters.AddWithValue("@username", user.Text);
-            cmd.Parameters.AddWithValue("@password", (pwd.Text));
-            cmd.ExecuteNonQuery();
-            MessageBox.Show("Successfully saved");
+            try
+            {
+                Task<List<User>> users =  GetUsersAsync(getAllUsersEndpoint);
+                return users.Result;
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error getting users: {ex.Message}");
+            }
+            return null;
+        }
+        private async Task <List<User>> GetUsersAsync(string apiEndpoint)
+        {
+            List<User> users = null;
+            using (HttpClient client = new HttpClient())
+            {
+                client.BaseAddress = new Uri(BaseUrl);
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+                try
+                {
+                    string responseContent  = await client.GetStringAsync(apiEndpoint).ConfigureAwait(false);
+                    
+                    // Assuming Newtonsoft.Json.JsonConvert for deserialization
+                    users = JsonConvert.DeserializeObject<List<User>>(responseContent);
+                }
+                catch(Exception ex)
+                {
+                    MessageBox.Show(ex.Message);
+                }
 
-            Admin.Admin a = new Admin.Admin();
-            Hide();
-            a.Show();
+                return users;
+            }
+        }
+
+
+        private async Task AddUserAsync(string apiEndpoint, HttpContent data)
+        {
+            using (HttpClient client = new HttpClient())
+            {
+                client.BaseAddress = new Uri(BaseUrl);
+                client.DefaultRequestHeaders.Accept.Clear();
+                client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+
+                HttpResponseMessage response = await client.PostAsync(apiEndpoint, data);
+
+                response.EnsureSuccessStatusCode();
+            }
         }
 
         private void Admin_op_CheckedChanged(object sender, EventArgs e)
         {
         }
 
+        void openForm()
+        {
+            if (GetUser() == 1)
+            {
+                Hide();
+                Admin.Admin a = new Admin.Admin();
+                a.Show();
+            }
+                
+        }
         int GetUser()
         {
             if (Admin_op.Checked)
